@@ -7,7 +7,7 @@
 #define MAX_TICKS_PER_SECOND 6
 #define SECONDS_TO_RUN 60
 #define NUM_VMS 3
-#define MAX_ID 99
+#define MAX_ID 100000 // PID_MAX
 #define LOG_EXTENSION ".out"
 
 struct message {
@@ -52,6 +52,9 @@ int vm_init_srv(struct vm *vm);
 /* initialize client sockets */
 int vm_init_cli(struct vm *vm);
 
+int vm_main();
+
+int vm_message_daemon(struct vm *vm);
 
 /* add new message to tail of queue */
 int vm_push_message(struct message *msg);
