@@ -11,7 +11,7 @@ typedef int bool;
 #define false 0
 
 #define MAX_TICKS_PER_SECOND 6
-#define SECONDS_TO_RUN 60
+#define SECONDS_TO_RUN 10
 #define NUM_VMS 3
 #define LOG_EXTENSION ".out"
 #define BUF_MSG_COUNT 50

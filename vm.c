@@ -22,9 +22,9 @@ typedef int bool;
 #define max(a, b) (((a) > (b)) ? (a) : (b)) 
 
 
-/* generate random int from [0, max) */
-static int randint(int max) {
-	return rand() % max;
+/* generate random int from [0, bound) */
+static int randint(int bound) {
+	return rand() % bound;
 }
 
 
@@ -277,7 +277,7 @@ void vm_log_receive(struct vm *vm, struct message *msg, time_t rawtime) {
 
   	timeinfo = localtime(&rawtime);
 
-	len = sprintf(buf, "(%s)\t[RECEIVE] sender ID: %d | sender LC: %d\n", 
+	len = sprintf(buf, "%s[RECEIVE] sender ID: %d | sender LC: %d\n\n", 
 		asctime(timeinfo), msg->sender_id, msg->sender_lc);
 	written = fwrite(buf, sizeof(char), len, vm->logfile);
 	if (written != len) {
@@ -296,10 +296,10 @@ void vm_log_send(struct vm *vm, int idx, time_t rawtime) {
   	timeinfo = localtime(&rawtime);
 
   	if (idx == 2) {
-  		len = sprintf(buf, "(%s)\t[SEND BOTH] local LC: %d\n", 
+  		len = sprintf(buf, "%s[SEND BOTH] local LC: %d\n\n", 
 			asctime(timeinfo), vm->lc);
   	} else {
-		len = sprintf(buf, "(%s)\t[SEND ONE] destination idx: %d | local LC: %d\n", 
+		len = sprintf(buf, "%s[SEND ONE] destination idx: %d | local LC: %d\n\n", 
 			asctime(timeinfo), idx, vm->lc);
 	}
 	written = fwrite(buf, sizeof(char), len, vm->logfile);
@@ -317,7 +317,7 @@ void vm_log_internal(struct vm *vm, time_t rawtime) {
 
   	timeinfo = localtime(&rawtime);
 
-	len = sprintf(buf, "(%s)\t[INTERNAL] local LC: %d\n", 
+	len = sprintf(buf, "%s[INTERNAL] local LC: %d\n\n", 
 		asctime(timeinfo), vm->lc);
 	written = fwrite(buf, sizeof(char), len, vm->logfile);
 	if (written != len) {
