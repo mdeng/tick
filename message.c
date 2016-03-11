@@ -13,7 +13,7 @@
 /////////////////
 // MESSAGES
 
-struct message *msg_create() {
+struct message *msg_create(sender_id, sender_lc) {
 	int result;
 	struct message *msg;
 
@@ -22,12 +22,16 @@ struct message *msg_create() {
 		return NULL;
 	}
 
-	msg->sender_id = -1;
-	msg->sender_lc = -1;
+	msg->sender_id = sender_id;
+	msg->sender_lc = sender_lc;
 
 	msg->prev = NULL;
 	msg->next = NULL;
 	return msg;
+}
+
+void msg_destroy(struct message *msg) {
+	free(msg);
 }
 
 void msg_print(struct message *msg) {
@@ -68,18 +72,13 @@ struct message *msg_read(int sockfd, int *buf, int buflen) {
 		exit(-1);
 	}
 
-	struct message *msg = msg_create();
+	struct message *msg = msg_create(buf[1] /* id */, buf[2] /*lc */);
 	if (msg == NULL) {
 		printf("read fail: could not alloc msg\n");
 		exit(-1);
 	}
-
-	msg->sender_id = buf[1];
-	msg->sender_lc = buf[2];
 	return msg;
 }
-
-// TODO: linked list stuff </3
 
 
 

@@ -32,24 +32,22 @@ struct vm {
 	/* time (s) between instructions/ticks */
 	float sleep_time;
 
-	int lclock;
+	int lc;
 
 	/* number of ticks passed */
 	int ticks;
 	int end_tick;
 
-	/* fifo queue of messages */
-	struct message *msgs;
+	/* fifo linked list of messages */
+	struct message *msg_head; // newest
+	struct message *msg_tail; // oldest
 	int msg_count;
 	/* protects queue & its count */
 	pthread_mutex_t msg_lock;
-
-	/* for reading messages from the socket */
-	int read_buf[3];
-
 };
 
-int vm_main();
+void vm_main(struct vm_args *args);
+void test_msglist_main();
 
 #endif /* _VM_H_ */
 

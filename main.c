@@ -22,7 +22,8 @@ int main() {
 			struct vm_args args;
 			args.id = i;
 			args.all_ids = ids;
-			return vm_main(&args);
+			vm_main(&args); 
+			return 0; /* unreachable — child should call exit() */
 		} else { /* parent */
 			vm_pids[i] = pid; /* parent */
 		}

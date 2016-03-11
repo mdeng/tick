@@ -1,5 +1,6 @@
 #include "vm.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,21 +8,21 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
+#include <time.h>
 #include <unistd.h> 
 
+
+/////////////////
+// UTILITIES
 
 typedef int bool;
 #define true 1
 #define false 0
 
-#define BUFLEN 1024
+#define max(a, b) (((a) > (b)) ? (a) : (b)) 
 
-
-/////////////////
-// HELPERS
 
 /* generate random int from [0, max) */
-// TODO: this isn't ~perfectly~ random
 static int randint(int max) {
 	return rand() % max;
 }
@@ -29,6 +30,10 @@ static int randint(int max) {
 
 /////////////////
 // VM
+
+/* for reading messages from the socket */
+#define READBUFLEN 12
+int read_buf[3];
 
 struct vm *vm_create(int id) {
 	int result;
@@ -64,14 +69,16 @@ struct vm *vm_create(int id) {
 		vm->cli_sock[i] = -1;
 	}
 
-	vm->lclock = 0;
+	vm->lc = 0;
 	vm->ticks = 0;
 
 	int ticks_per_s = randint(MAX_TICKS_PER_SECOND);
 	vm->sleep_time = 1.0 / ticks_per_s;
 	vm->end_tick = SECONDS_TO_RUN * ticks_per_s;
+	printf("end tick: %d\n", vm->end_tick);
 
-	vm->msgs = NULL;
+	vm->msg_head = NULL;
+	vm->msg_tail = NULL;
 	vm->msg_count = 0;
 
 	return vm;
@@ -97,6 +104,68 @@ void vm_destroy(struct vm *vm) {
 
 	fclose(vm->logfile);
 	free(vm);
+}
+
+void vm_inc_ticks(struct vm *vm) {
+	vm->ticks += 1;
+	sleep(vm->sleep_time);
+
+	/* time's up; clean up resources and exit */
+	if (vm->ticks == vm->end_tick) {
+		vm_destroy(vm);
+		exit(0); /* this will terminate the daemon too */
+	}
+}
+
+void vm_push_message(struct vm *vm, struct message *new_msg) {
+	if (new_msg == NULL) {
+		return;
+	}
+
+	pthread_mutex_lock(&vm->msg_lock);
+
+	if (vm->msg_count == 0) {
+		assert(vm->msg_head == NULL);
+		assert(vm->msg_tail == NULL);
+
+		vm->msg_head = new_msg;
+		vm->msg_tail = new_msg;
+	} else {
+		new_msg->next = vm->msg_head;
+		new_msg->prev = NULL;
+		new_msg->next->prev = new_msg;
+		vm->msg_head = new_msg;
+	}
+	vm->msg_count++;
+
+	pthread_mutex_unlock(&vm->msg_lock);
+}
+
+struct message *vm_pop_message(struct vm *vm, time_t *rawtime) {
+	struct message *msg;
+
+	pthread_mutex_lock(&vm->msg_lock);
+
+	if (vm->msg_count == 0) {
+		pthread_mutex_unlock(&vm->msg_lock);
+		return NULL;
+	}
+
+	msg = vm->msg_tail;
+	if (vm->msg_count == 1) {
+		vm->msg_head = NULL;
+		vm->msg_tail = NULL;
+	} else {
+		vm->msg_tail = msg->prev;
+		vm->msg_tail->next = NULL;
+	}
+	vm->msg_count--;
+
+	pthread_mutex_unlock(&vm->msg_lock);
+
+	time(rawtime);
+	vm_inc_ticks(vm);
+	return msg;
 }
 
 // TODO error handling
@@ -181,24 +250,140 @@ void *vm_message_daemon(void *args) {
 	int conn_fd;
 	struct sockaddr_un remote_sa;
 
-	char buf[BUFLEN];
-
 	socklen_t len = sizeof(remote_sa);
 	conn_fd = accept(vm->srv_sock, (struct sockaddr *)&remote_sa, &len);
-/*
-	while (len = recv(conn_fd, &buf, BUFLEN, 0), len > 0) {
-	    // parse the message in buf TODO
-	    break;
-	}*/
-	pthread_exit(NULL);
+
+	while (true) {
+		struct message *new_msg;
+
+		/* get a message off the socket, and push it on the queue*/
+		new_msg = msg_read(conn_fd, read_buf, READBUFLEN);
+		vm_push_message(vm, new_msg);
+	}
 }
 
-int vm_main(struct vm_args *args) {
+void vm_update_lc(struct vm *vm, int other_lc) {
+	assert(vm != NULL);
+	vm->lc = max(vm->lc + 1, other_lc);
+	vm_inc_ticks(vm);
+}
+
+void vm_log_receive(struct vm *vm, struct message *msg, time_t rawtime) {
+	/* write that it received a message, the global system time, the length 
+	 * of the message queue, and the logical clock time. */
+	char buf[128];
+	size_t len, written;
+	struct tm *timeinfo;
+
+  	timeinfo = localtime(&rawtime);
+
+	len = sprintf(buf, "(%s)\t[RECEIVE] sender ID: %d | sender LC: %d", 
+		asctime(timeinfo), msg->sender_id, msg->sender_lc);
+	written = fwrite(buf, sizeof(char), len, vm->logfile);
+	if (written != len) {
+		perror("log write");
+	}
+
+	vm_inc_ticks(vm);
+}
+
+// TODO idx change to sockname or target id
+void vm_log_send(struct vm *vm, int idx, time_t rawtime) {
+	char buf[128];
+	size_t len, written;
+	struct tm *timeinfo;
+
+  	timeinfo = localtime(&rawtime);
+
+  	if (idx == 2) {
+  		len = sprintf(buf, "(%s)\t[SEND BOTH] local LC: %d", 
+			asctime(timeinfo), vm->lc);
+  	} else {
+		len = sprintf(buf, "(%s)\t[SEND ONE] destination idx: %d | local LC: %d", 
+			asctime(timeinfo), idx, vm->lc);
+	}
+	written = fwrite(buf, sizeof(char), len, vm->logfile);
+	if (written != len) {
+		perror("log write");
+	}
+
+	vm_inc_ticks(vm);
+}
+
+void vm_log_internal(struct vm *vm, time_t rawtime) {
+	char buf[128];
+	size_t len, written;
+	struct tm *timeinfo;
+
+  	timeinfo = localtime(&rawtime);
+
+	len = sprintf(buf, "(%s)\t[INTERNAL] local LC: %d", 
+		asctime(timeinfo), vm->lc);
+	written = fwrite(buf, sizeof(char), len, vm->logfile);
+	if (written != len) {
+		perror("log write");
+	}
+
+	vm_inc_ticks(vm);
+}
+
+int vm_generate_action_type(struct vm *vm) {
+	int action_type;
+
+	action_type = randint(10);
+	vm_inc_ticks(vm);
+	return action_type;
+}
+
+void vm_send_message(struct vm *vm, int sock_idx, time_t *rawtime) {
+	msg_send(vm->cli_sock[sock_idx], vm->id, vm->lc);
+	time(rawtime);
+	vm_inc_ticks(vm);
+}
+
+void vm_run_cycle(struct vm *vm) {
+	time_t rawtime;
+
+	/* check for messages */
+	struct message *msg = vm_pop_message(vm, &rawtime);
+	if (msg != NULL) {
+		vm_update_lc(vm, msg->sender_lc);
+		vm_log_receive(vm, msg, rawtime);
+		msg_destroy(msg);
+	} else {
+		int action_type = vm_generate_action_type(vm);
+		switch(action_type) {
+			case 0:
+				vm_send_message(vm, 0, &rawtime);
+				vm_update_lc(vm, 0 /* other_lc */);
+				vm_log_send(vm, 0, rawtime);
+				break;
+			case 1:
+				vm_send_message(vm, 1, &rawtime);
+				vm_update_lc(vm, 0 /* other_lc */);
+				vm_log_send(vm, 1, rawtime);
+				break;
+			case 2:
+				vm_send_message(vm, 0, &rawtime); 
+				vm_send_message(vm, 1, &rawtime); // 2nd time will be recorded
+				vm_update_lc(vm, 0 /* other_lc */);
+				vm_log_send(vm, 2, rawtime);
+				break;
+			default:
+				assert(action_type < 10);
+				vm_update_lc(vm, 0 /* other_lc */);
+				vm_log_internal(vm, rawtime);
+				break;
+		}
+	}
+}
+
+void vm_main(struct vm_args *args) {
 	struct vm *vm;
 
 	vm = vm_create(args->id);
 	if (vm == NULL) {
-		return 1;
+		return;
 	}
 	vm_init_srv_sockets(vm);
 
@@ -211,62 +396,25 @@ int vm_main(struct vm_args *args) {
 
 	vm_init_cli_sockets(vm, args);
 
-	/// DO STUFF IN A LOOP
-
-	for (int i = 0; i < NUM_VMS - 1; i++) {
-		pthread_join(threads[i], NULL);
+	while(true) {
+		vm_run_cycle(vm);
 	}
-	return 0;
-}
-
-/* Get a message off the server socket. Returns NULL on error. */
-struct message *vm_read_queued(struct vm *vm) {
-	return msg_read(vm->srv_sock, vm->read_buf, sizeof(vm->read_buf));
 }
 
 // TODO: logging functions n stuff
 
-/* print VM fields; for debugging */
-void vm_print(struct vm *vm) {
-	printf("[VM %d]: lclock %d | sleep_time %f | ticks %d\n", 
-		vm->id, vm->lclock, vm->sleep_time, vm->ticks);
+void vm_print_messages(struct vm *vm) {
+	printf("messages: \n");
+	struct message *cur = vm->msg_head;
+	while (cur != NULL) {
+		msg_print(cur);
+		cur = cur->next;
+	}
 }
 
-
-// TODO DELETE THIS - it's just an example to test sending
-int test_msg_main(int id, int all_ids[]) {
-	printf("vm %d in main!!!\n", id);
-
-	int sockfd;
-
-	if (id == 1) {
-		init_srv_sock(&sockfd, "test.sock");
-		int x;
-		struct sockaddr_un remote_sa;
-
-
-		socklen_t len = sizeof(remote_sa);
-
-		if ((x = accept(sockfd, (struct sockaddr *)&remote_sa, &len)) && x > 0) {
-			printf("got connection\n");
-			int readbuf[3];
-			struct message *msg = msg_read(x, readbuf, sizeof(readbuf));
-			msg_print(msg);
-		} else {
-			perror("accept");
-		}
-	} else if (id == 2) {
-		sleep(1);
-		int res = init_cli_sock(&sockfd, "test.sock", id);
-		sleep(1);
-		if (res == 0) {
-			printf("sending...\n");
-			msg_send(sockfd, 1, 2);
-		} else {
-			perror("connect");
-			exit(-1);
-		}
-	}
-
-	return 0;
+/* print VM fields; for debugging */
+void vm_print(struct vm *vm) {
+	printf("[VM %d]: lc %d | sleep_time %f | ticks %d\n", 
+		vm->id, vm->lc, vm->sleep_time, vm->ticks);
+	vm_print_messages(vm);
 }
