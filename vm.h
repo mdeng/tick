@@ -3,21 +3,24 @@
 
 #include <stdio.h>
 #include <pthread.h>
+#include "message.h"
+
+
+typedef int bool;
+#define true 1
+#define false 0
 
 #define MAX_TICKS_PER_SECOND 6
 #define SECONDS_TO_RUN 60
 #define NUM_VMS 3
 #define MAX_ID 100000 // PID_MAX
 #define LOG_EXTENSION ".out"
+#define BUF_MSG_COUNT 50
 
-struct message {
-	struct message *prev;
-	struct message *next;
-	int sender_id;
-	int sender_lc;
+struct vm_args {
+	int id;
+	int *all_ids;
 };
-
-struct message *message_create(int sender_id, int sender_lc);
 
 struct vm {
 	int id;
@@ -38,29 +41,16 @@ struct vm {
 
 	/* fifo queue of messages */
 	struct message *msgs;
-	/* protects adding and removing from queue */
+	int msg_count;
+	/* protects queue & its count */
 	pthread_mutex_t msg_lock;
+
+	/* for reading messages from the socket */
+	int read_buf[3];
+
 };
 
-/* alloc new vm */
-struct vm *vm_create(int id);
-/* free vm */
-void vm_destroy(struct vm *vm);
-
-/* initialize server socket */
-int vm_init_srv(struct vm *vm);
-/* initialize client sockets */
-int vm_init_cli(struct vm *vm);
-
 int vm_main();
-
-int vm_message_daemon(struct vm *vm);
-
-/* add new message to tail of queue */
-int vm_push_message(struct message *msg);
-/* fetch earliest message from queue */
-struct message *vm_pop_message();
-
 
 #endif /* _VM_H_ */
 
