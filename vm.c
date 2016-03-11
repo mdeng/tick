@@ -9,7 +9,16 @@
 #include <sys/un.h>
 #include <unistd.h> 
 
+
+typedef int bool;
+#define true 1
+#define false 0
+
 #define BUFLEN 1024
+
+
+/////////////////
+// HELPERS
 
 /* generate random int from [0, max) */
 // TODO: this isn't ~perfectly~ random
@@ -17,16 +26,13 @@ static int randint(int max) {
 	return rand() % max;
 }
 
+
 /////////////////
 // VM
 
 struct vm *vm_create(int id) {
 	int result;
 	struct vm *vm;
-
-	if (id > MAX_ID) {
-		return NULL;
-	}
 
 	vm = malloc(sizeof(*vm));
 	if (vm == NULL) {
@@ -136,7 +142,8 @@ int init_cli_sock(int *sock_fd, const char *remote_name, int vm_id) {
 	    len = strlen(sa.sun_path) + sizeof(sa.sun_family) + 1;
 
 	    if (connect(*sock_fd, (struct sockaddr *)&sa, len) == -1) {
-	        perror("connect");
+	        /* This commonly errors out if the other server hasn't initalized 
+	         * the socket yet. */
 	        close(*sock_fd);
 	        continue;
 	    }
@@ -212,12 +219,14 @@ int vm_main(struct vm_args *args) {
 	return 0;
 }
 
+/* Get a message off the server socket. Returns NULL on error. */
 struct message *vm_read_queued(struct vm *vm) {
 	return msg_read(vm->srv_sock, vm->read_buf, sizeof(vm->read_buf));
 }
 
 // TODO: logging functions n stuff
 
+/* print VM fields; for debugging */
 void vm_print(struct vm *vm) {
 	printf("[VM %d]: lclock %d | sleep_time %f | ticks %d\n", 
 		vm->id, vm->lclock, vm->sleep_time, vm->ticks);

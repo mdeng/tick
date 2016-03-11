@@ -13,7 +13,6 @@ typedef int bool;
 #define MAX_TICKS_PER_SECOND 6
 #define SECONDS_TO_RUN 60
 #define NUM_VMS 3
-#define MAX_ID 100000 // PID_MAX
 #define LOG_EXTENSION ".out"
 #define BUF_MSG_COUNT 50
 
