@@ -12,7 +12,6 @@ typedef int bool;
 
 #define MAX_TICKS_PER_SECOND 6
 #define MAX_ACTION_CHOICES 15
-#define SECONDS_TO_RUN 60
 #define NUM_VMS 3
 #define LOG_EXTENSION ".out"
 #define BUF_MSG_COUNT 50
@@ -20,6 +19,7 @@ typedef int bool;
 struct vm_args {
 	int id;
 	int *all_ids;
+	int sec_to_run;
 };
 
 struct vm {

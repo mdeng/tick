@@ -31,7 +31,7 @@ static int randint(int bound) {
 /////////////////
 // VM
 
-struct vm *vm_create(int id) {
+struct vm *vm_create(struct vm_args *args) {
 	int result;
 	struct vm *vm;
 
@@ -40,11 +40,11 @@ struct vm *vm_create(int id) {
 		return NULL;
 	}
 
-	vm->id = id;
+	vm->id = args->id;
 
 	/* open logfile, named [id].out */
 	char log_name[strlen(LOG_EXTENSION) + 10 /* enoughf or null + id length */ ];
-	result = sprintf(log_name, "%d%s", id, LOG_EXTENSION);
+	result = sprintf(log_name, "%d%s", vm->id, LOG_EXTENSION);
 	if (result < 0) {
 		goto err_file;
 	}
@@ -74,7 +74,7 @@ struct vm *vm_create(int id) {
 	int ticks_per_s = randint(MAX_TICKS_PER_SECOND) + 1;
 	printf("ticks_per_s: %d\n", ticks_per_s);
 	vm->sleep_time = 1.0 / ticks_per_s;
-	vm->end_tick = SECONDS_TO_RUN * ticks_per_s;
+	vm->end_tick = args->sec_to_run * ticks_per_s;
 	printf("end tick: %d\n", vm->end_tick);
 
 	vm->msg_head = NULL;
@@ -389,7 +389,7 @@ void vm_main(struct vm_args *args) {
 
 	srand(args->id + 1);
 
-	vm = vm_create(args->id);
+	vm = vm_create(args);
 	if (vm == NULL) {
 		return;
 	}

@@ -1,11 +1,25 @@
 #include "vm.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <sys/wait.h>
 
 
-int main() {
+#define DEFAULT_SEC_TO_RUN 60
+
+int main(int argc, char *argv[]) {
+	/* configure number of seconds to run each VM */
+	int sec_to_run;
+	if (argc == 1) {
+		sec_to_run = DEFAULT_SEC_TO_RUN;
+	} else if (argc == 2) {
+		sec_to_run = atoi(argv[1]);
+	} else {
+		printf("Usage: ./lclock [seconds_to_run]\n");
+		return 1;
+	}
+
 	/* allow parent to wait for children */
 	pid_t vm_pids[NUM_VMS];
 
@@ -22,6 +36,7 @@ int main() {
 			struct vm_args args;
 			args.id = i;
 			args.all_ids = ids;
+			args.sec_to_run = sec_to_run;
 			vm_main(&args); 
 			return 0; /* unreachable — child should call exit() */
 		} else { /* parent */
