@@ -3,8 +3,14 @@
 
 #include "vm.h"
 
+/* 
+ * a message is 3 int32s, for a total length of 12 bytes:
+ * checksum (4 bytes)
+ * sender id (4 bytes)
+ * sender logical clock (4 bytes)
+ */
 #define MSG_CHECKSUM 1234
-#define MSG_LEN 12 // TODO
+#define MSG_LEN 12
 
 struct message {
 	struct message *prev;

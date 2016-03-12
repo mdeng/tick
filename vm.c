@@ -73,10 +73,9 @@ struct vm *vm_create(struct vm_args *args) {
 	vm->ticks = 0;
 
 	int ticks_per_s = randint(MAX_TICKS_PER_SECOND) + 1;
-	printf("ticks_per_s: %d\n", ticks_per_s);
+	printf("VM %d speed: %d ticks/s\n", vm->id, ticks_per_s);
 	vm->sleep_time = 1.0 / ticks_per_s;
 	vm->end_tick = args->sec_to_run * ticks_per_s;
-	printf("end tick: %d\n", vm->end_tick);
 
 	vm->msg_head = NULL;
 	vm->msg_tail = NULL;
@@ -293,7 +292,6 @@ void vm_log_receive(struct vm *vm, struct message *msg, time_t rawtime) {
 	vm_inc_ticks(vm);
 }
 
-// TODO idx change to sockname or target id
 void vm_log_send(struct vm *vm, int dest_idx, time_t rawtime) {
 	char buf[128];
 	size_t len, written;
@@ -348,6 +346,9 @@ void vm_send_message(struct vm *vm, int sock_idx, time_t *rawtime) {
 }
 
 void vm_run_cycle(struct vm *vm) {
+	putchar('.');
+	fflush(stdout);
+
 	time_t rawtime;
 
 	/* check for messages */
@@ -358,7 +359,6 @@ void vm_run_cycle(struct vm *vm) {
 		msg_destroy(msg);
 	} else {
 		int action_type = vm_generate_action_type(vm);
-		printf("Action type: %d, ID: %d\n", action_type, vm->id);
 		switch(action_type) {
 			case 0:
 				vm_send_message(vm, 0, &rawtime);
@@ -412,8 +412,7 @@ void vm_main(struct vm_args *args) {
 	}
 }
 
-// TODO: logging functions n stuff
-
+/* print helpers for debugging */
 void vm_print_messages(struct vm *vm) {
 	printf("messages: \n");
 	struct message *cur = vm->msg_head;
@@ -422,8 +421,6 @@ void vm_print_messages(struct vm *vm) {
 		cur = cur->next;
 	}
 }
-
-/* print VM fields; for debugging */
 void vm_print(struct vm *vm) {
 	printf("[VM %d]: lc %d | sleep_time %f | ticks %d\n", 
 		vm->id, vm->lc, vm->sleep_time, vm->ticks);

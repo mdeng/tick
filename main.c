@@ -19,6 +19,7 @@ int main(int argc, char *argv[]) {
 		printf("Usage: ./lclock [seconds_to_run]\n");
 		return 1;
 	}
+	printf("Running simulation for %d seconds.\n", sec_to_run);
 
 	/* allow parent to wait for children */
 	pid_t vm_pids[NUM_VMS];
@@ -48,6 +49,6 @@ int main(int argc, char *argv[]) {
 	for (int i = 0; i < NUM_VMS; i++) {
 		waitpid(vm_pids[i], NULL, 0);
 	}
-	printf("Done!\n");
+	printf("\nDone!\n");
 	return 0;
 }
