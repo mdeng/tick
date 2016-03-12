@@ -23,10 +23,7 @@ typedef int bool;
 
 
 /* generate random int from [0, bound) */
-static int randint(int bound, int id) {
-	struct timeval now;
-	gettimeofday(&now, NULL);
-	srand((now.tv_usec % 10000) * (id+1));
+static int randint(int bound) {
 	int rand_num = rand() % bound;
 	return rand_num;
 }
@@ -76,7 +73,7 @@ struct vm *vm_create(int id) {
 	vm->lc = 0;
 	vm->ticks = 0;
 
-	int ticks_per_s = randint(MAX_TICKS_PER_SECOND, id) + 1;
+	int ticks_per_s = randint(MAX_TICKS_PER_SECOND) + 1;
 	printf("ticks_per_s: %d\n", ticks_per_s);
 	vm->sleep_time = 1.0 / ticks_per_s;
 	vm->end_tick = SECONDS_TO_RUN * ticks_per_s;
@@ -335,7 +332,7 @@ void vm_log_internal(struct vm *vm, time_t rawtime) {
 int vm_generate_action_type(struct vm *vm) {
 	int action_type;
 
-	action_type = randint(MAX_ACTION_CHOICES, vm->id);
+	action_type = randint(MAX_ACTION_CHOICES);
 	vm_inc_ticks(vm);
 	return action_type;
 }
@@ -386,6 +383,8 @@ void vm_run_cycle(struct vm *vm) {
 
 void vm_main(struct vm_args *args) {
 	struct vm *vm;
+
+	srand(args->id + 1);
 
 	vm = vm_create(args->id);
 	if (vm == NULL) {
