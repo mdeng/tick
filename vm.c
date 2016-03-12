@@ -23,8 +23,12 @@ typedef int bool;
 
 
 /* generate random int from [0, bound) */
-static int randint(int bound) {
-	return rand() % bound;
+static int randint(int bound, int id) {
+	struct timeval now;
+	gettimeofday(&now, NULL);
+	srand((now.tv_usec % 10000) * (id+1));
+	int rand_num = rand() % bound;
+	return rand_num;
 }
 
 
@@ -72,7 +76,8 @@ struct vm *vm_create(int id) {
 	vm->lc = 0;
 	vm->ticks = 0;
 
-	int ticks_per_s = randint(MAX_TICKS_PER_SECOND);
+	int ticks_per_s = randint(MAX_TICKS_PER_SECOND, id) + 1;
+	printf("ticks_per_s: %d\n", ticks_per_s);
 	vm->sleep_time = 1.0 / ticks_per_s;
 	vm->end_tick = SECONDS_TO_RUN * ticks_per_s;
 	printf("end tick: %d\n", vm->end_tick);
@@ -108,7 +113,7 @@ void vm_destroy(struct vm *vm) {
 
 void vm_inc_ticks(struct vm *vm) {
 	vm->ticks += 1;
-	sleep(vm->sleep_time);
+	usleep(1000000 * vm->sleep_time);
 
 	/* time's up; clean up resources and exit */
 	if (vm->ticks == vm->end_tick) {
@@ -264,7 +269,7 @@ void *vm_message_daemon(void *args) {
 
 void vm_update_lc(struct vm *vm, int other_lc) {
 	assert(vm != NULL);
-	vm->lc = max(vm->lc + 1, other_lc);
+	vm->lc = max(vm->lc, other_lc) + 1;
 	vm_inc_ticks(vm);
 }
 
@@ -277,8 +282,8 @@ void vm_log_receive(struct vm *vm, struct message *msg, time_t rawtime) {
 
   	timeinfo = localtime(&rawtime);
 
-	len = sprintf(buf, "%s[RECEIVE] sender ID: %d | sender LC: %d\n\n", 
-		asctime(timeinfo), msg->sender_id, msg->sender_lc);
+	len = sprintf(buf, "%s[RECEIVE] sender ID: %d | sender LC: %d | local LC: %d | msg_count %d\n\n", 
+		asctime(timeinfo), msg->sender_id, msg->sender_lc, vm->lc, vm->msg_count);
 	written = fwrite(buf, sizeof(char), len, vm->logfile);
 	if (written != len) {
 		perror("log write");
@@ -330,7 +335,7 @@ void vm_log_internal(struct vm *vm, time_t rawtime) {
 int vm_generate_action_type(struct vm *vm) {
 	int action_type;
 
-	action_type = randint(10);
+	action_type = randint(MAX_ACTION_CHOICES, vm->id);
 	vm_inc_ticks(vm);
 	return action_type;
 }
@@ -352,6 +357,7 @@ void vm_run_cycle(struct vm *vm) {
 		msg_destroy(msg);
 	} else {
 		int action_type = vm_generate_action_type(vm);
+		printf("Action type: %d, ID: %d\n", action_type, vm->id);
 		switch(action_type) {
 			case 0:
 				vm_send_message(vm, 0, &rawtime);
@@ -370,7 +376,7 @@ void vm_run_cycle(struct vm *vm) {
 				vm_log_send(vm, 2, rawtime);
 				break;
 			default:
-				assert(action_type < 10);
+				assert(action_type < MAX_ACTION_CHOICES);
 				vm_update_lc(vm, 0 /* other_lc */);
 				vm_log_internal(vm, rawtime);
 				break;
