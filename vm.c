@@ -387,7 +387,9 @@ void vm_run_cycle(struct vm *vm) {
 void vm_main(struct vm_args *args) {
 	struct vm *vm;
 
-	srand(args->id + 1);
+	struct timeval now;
+	gettimeofday(&now, NULL);
+	srand((now.tv_usec % 10000) * (args->id + 1));
 
 	vm = vm_create(args->id);
 	if (vm == NULL) {
