@@ -27,6 +27,8 @@ struct vm {
 
 	int srv_sock;
 	int cli_sock[NUM_VMS - 1];
+	/* IDs of VMs corresponding to cli_sock above */
+	int cli_ids[NUM_VMS - 1]; 
 
 	FILE *logfile;
 
