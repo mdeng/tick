@@ -57,27 +57,21 @@ void msg_send(int sockfd, int sender_id, int lc) {
 	}
 }
 
-// Dumb version — assume everything is k00l, bork otherwise
+/* Reads one message at a time from the socket. Assumes everything is dandy. */
 struct message *msg_read(int sockfd, int *buf, int buflen) {
 	ssize_t received = recv(sockfd, buf, buflen, 0);
 
 	if (received < buflen) {
-		printf("read fail: %zd received (out of %d)\n", received, buflen);
-		perror("recv");
-		exit(-1);
+		return NULL;
 	}
 
 	if (buf[0] != MSG_CHECKSUM) {
 		printf("read fail: checksum mismatch\n");
-		exit(-1);
+		return NULL;
 	}
 
 	struct message *msg = msg_create(buf[1] /* id */, buf[2] /*lc */);
-	if (msg == NULL) {
-		printf("read fail: could not alloc msg\n");
-		exit(-1);
-	}
-	return msg;
+	return msg; /* null if allocation error */
 }
 
 

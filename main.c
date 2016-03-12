@@ -46,9 +46,8 @@ int main(int argc, char *argv[]) {
 
 	/* parent should wait for children to exit */
 	for (int i = 0; i < NUM_VMS; i++) {
-		printf("waiting for VM %d (pid %d)\n", i, vm_pids[i]);
 		waitpid(vm_pids[i], NULL, 0);
 	}
-	printf("done\n");
+	printf("Done!\n");
 	return 0;
 }
