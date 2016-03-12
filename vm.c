@@ -27,17 +27,13 @@ static int randint(int bound, int id) {
 	struct timeval now;
 	gettimeofday(&now, NULL);
 	srand((now.tv_usec % 10000) * (id+1));
-	int rand_num = rand() % bound;
-	return rand_num;
+
+	return rand() % bound;
 }
 
 
 /////////////////
 // VM
-
-/* for reading messages from the socket */
-#define READBUFLEN 12
-int read_buf[3];
 
 struct vm *vm_create(int id) {
 	int result;
@@ -72,7 +68,10 @@ struct vm *vm_create(int id) {
 	for (int i = 0; i < NUM_VMS - 1; i++) {
 		vm->cli_sock[i] = -1;
 	}
-
+	/* init client IDs to invalid */
+	for (int i = 0; i < NUM_VMS - 1; i++) {
+		vm->cli_ids[i] = -1;
+	}
 	vm->lc = 0;
 	vm->ticks = 0;
 
@@ -241,12 +240,17 @@ void vm_init_cli_sockets(struct vm *vm, struct vm_args *args) {
 	int sock_idx = 0;
 	for (int i = 0; i < NUM_VMS; i++) {
 		if (args->all_ids[i] != vm->id) { 
+			vm->cli_ids[sock_idx] = args->all_ids[i];
 			sprintf(name, "%d.sock", args->all_ids[i]);
 			init_cli_sock(&vm->cli_sock[sock_idx], name, vm->id);
 			sock_idx++;
 		}
 	}
 }
+
+/* for reading messages from the socket */
+#define READBUFLEN 12
+int read_buf[3];
 
 /* Will have two of these, one for handling each client (other VM) */
 void *vm_message_daemon(void *args) {
@@ -293,19 +297,19 @@ void vm_log_receive(struct vm *vm, struct message *msg, time_t rawtime) {
 }
 
 // TODO idx change to sockname or target id
-void vm_log_send(struct vm *vm, int idx, time_t rawtime) {
+void vm_log_send(struct vm *vm, int dest_idx, time_t rawtime) {
 	char buf[128];
 	size_t len, written;
 	struct tm *timeinfo;
 
   	timeinfo = localtime(&rawtime);
 
-  	if (idx == 2) {
+  	if (dest_idx == 2) {
   		len = sprintf(buf, "%s[SEND BOTH] local LC: %d\n\n", 
 			asctime(timeinfo), vm->lc);
   	} else {
-		len = sprintf(buf, "%s[SEND ONE] destination idx: %d | local LC: %d\n\n", 
-			asctime(timeinfo), idx, vm->lc);
+		len = sprintf(buf, "%s[SEND ONE] destination id: %d | local LC: %d\n\n", 
+			asctime(timeinfo), vm->cli_ids[dest_idx], vm->lc);
 	}
 	written = fwrite(buf, sizeof(char), len, vm->logfile);
 	if (written != len) {
