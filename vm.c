@@ -183,7 +183,6 @@ struct message *vm_pop_message(struct vm *vm, time_t *rawtime) {
 	return msg;
 }
 
-// TODO error handling
 int init_srv_sock(int *sock_fd, const char *sock_name) {
 	int len;
 	struct sockaddr_un sa;
@@ -208,7 +207,6 @@ int init_srv_sock(int *sock_fd, const char *sock_name) {
 	return 0;
 }
 
-// TODO actual error handling
 int init_cli_sock(int *sock_fd, const char *remote_name, int vm_id) {
 	int len;
 	struct sockaddr_un sa;
