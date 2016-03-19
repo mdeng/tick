@@ -66,20 +66,21 @@ exited.
 
 # Files
 
-* message.c/h: Defines `struct message`, which represents messages passed from 
+* `message.c/h`: Defines `struct message`, which represents messages passed from 
 one VM to another, containing information about the sender's identity and 
-logical clock value at time of sending.
+logical clock value at time of sending. Also contains utilities for sending and 
+receiving messages from a socket.
 
-* vm.c/h: Defines `struct vm`, which represents a simulated VM. Each VM should 
+* `vm.c/h`: Defines `struct vm`, which represents a simulated VM. Each VM should 
 run in its own process in the same working directory, and each needs to have 
-unique IDs. vm.h merely exposes the main run loop for a single VM; vm.c contains 
-all the helpers that the VM needs to function (e.g. initialization helpers, 
+unique IDs. `vm.h` merely exposes the main run loop for a single VM; `vm.c` 
+contains more helpers that the VM needs to function (e.g. initialization, 
 pulling and pushing from message list, etc.).
 
-* main.c: Startup routine that forks 3 processes and launches a VM simulation in
-each, under the IDs 1, 2, and 3. The start routine will wait for all the VMs 
+* `main.c`: Startup routine that forks 3 processes and launches a VM simulation 
+in each, under the IDs 1, 2, and 3. The start routine will wait for all the VMs 
 to exit before itself exiting.
 
-* Makefile: Used to build and clean the package.
+* `Makefile`: Used to build and clean the package.
 
-* README.md: This file!
+* `README.md`: This file!
