@@ -41,7 +41,8 @@ the following:
 * Writing to the log
 * Incrementing the logical clock
 * Reading a message from its message queue
-* Sending a message to other clients 
+* Sending a message to other clients.
+
 To do this, we have one function per instruction, and each of these functions
 sleeps for [1/n] seconds (as defined by the system clock) before returning.
 
