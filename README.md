@@ -32,8 +32,9 @@ Done!
 # System Architecture 
 
 We fork 3 processes, each of which simulates a VM, encapsulated by `struct vm`
-defined in `vm.c|h`. The VMs communicate to each other over UNIX sockets. Specifically, each VM is assigned an ID, and knows the IDs of all the other VMs. During initialization, a VM will open a server socket named `[id].sock` and 
-connect as clients to the sockets of all the other VMs.
+defined in `vm.c|h`. The VMs communicate to each other over UNIX sockets. Specifically, each VM is assigned a unique ID and knows the IDs of the others. 
+During initialization, a VM will open a server socket named `[id].sock` and 
+connect as clients to the sockets of the other VMs.
 
 As per the specs, each VM's run loop is constrained to execute at some randomly
 chosen `n` between 1 and 6 instructions per second, where an instruction is 
@@ -54,7 +55,7 @@ Meanwhile, during initialization we have each VM fork a background thread, whose
 between the main and background threads using a mutex. Note that messages are 
 only sent in the client -> server direction over these sockets.
 
-After running for `seconds_to_run` (default 60) seconds, which defaults to 60 seconds, each VM simulation process will independently call exit(). The parent 
+After running for `seconds_to_run` (default 60) seconds, which defaults to 60 seconds, each VM simulation process will independently call `exit()`. The parent 
 launcher process will terminate after all these children processes have 
 exited.
 
