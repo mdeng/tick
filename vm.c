@@ -32,6 +32,9 @@ static int randint(int bound) {
 /////////////////
 // VM
 
+/* 
+ * Safely create a VM structure. Returns NULL on error.
+ */
 struct vm *vm_create(struct vm_args *args) {
 	int result;
 	struct vm *vm;
@@ -90,6 +93,9 @@ err_file:
 	return NULL;
 }
 
+/* 
+ * Clean up a VM, including all its resources.
+ */
 void vm_destroy(struct vm *vm) {
 	pthread_mutex_destroy(&vm->msg_lock);
 
@@ -106,6 +112,14 @@ void vm_destroy(struct vm *vm) {
 	free(vm);
 }
 
+/* Helper routine for easy system time management.
+ * 
+ * This increments the number of ticks that this machine has run, 
+ * and checks to see if it has run to completion (i.e., for 
+ * num_seconds_to_run). If so, the machine exits; otherwise, 
+ * it sleeps for 1/n seconds, where n is the number of instructions
+ * this machine should execute per second.
+ */ 
 void vm_inc_ticks(struct vm *vm) {
 	vm->ticks += 1;
 	usleep(1000000 * vm->sleep_time);
@@ -116,6 +130,7 @@ void vm_inc_ticks(struct vm *vm) {
 		exit(0); /* this will terminate the daemon too */
 	}
 }
+
 
 void vm_push_message(struct vm *vm, struct message *new_msg) {
 	if (new_msg == NULL) {

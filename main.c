@@ -5,9 +5,17 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-
 #define DEFAULT_SEC_TO_RUN 60
 
+
+/*
+ * Main routine.
+ * Forks 3 processes, each of which simulates a VM by running
+ * the main loop of `struct vm`. 
+ * The VM simulations will exit after running for `num_seconds_to_run`
+ * seconds, as defined by the system clock. Then, the parent will
+ * exit and output `Done.`
+ */
 int main(int argc, char *argv[]) {
 	/* configure number of seconds to run each VM */
 	int sec_to_run;
@@ -21,7 +29,7 @@ int main(int argc, char *argv[]) {
 	}
 	printf("Running simulation for %d seconds.\n", sec_to_run);
 
-	/* allow parent to wait for children */
+	/* save child IDs so that we can wait for children to exit */
 	pid_t vm_pids[NUM_VMS];
 
 	int ids[NUM_VMS];
