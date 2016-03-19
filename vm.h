@@ -50,7 +50,6 @@ struct vm {
 };
 
 void vm_main(struct vm_args *args);
-void test_msglist_main();
 
 #endif /* _VM_H_ */
 
