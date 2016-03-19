@@ -5,8 +5,8 @@ This package models a small, asynchronous distributed system consisting of 3
 machines running at different speeds. In the simulated system, each machine 
 maintains a logical clock, and they pass messages about their logical clock 
 values to each other over a network and log events. The 3 VMs will be given 
-the IDs 1, 2, and 3, and they will respectively log to the files 1.out, 2.out, 
-and 3.out.
+the IDs 1, 2, and 3, and they will respectively log to the files `1.out`, 
+`2.out`, and `3.out`.
 
 A fuller description of their behavior is in `specs.txt`.  
 
@@ -27,6 +27,9 @@ VM 2 speed: 4 ticks/s
 .........................................
 Done!
 ```
+
+Further adjustments to settings (e.g. number of VMs to spawn, extension of
+logfiles, etc.) can be adjusted in `vm.h`.
 
 
 # System Architecture 
