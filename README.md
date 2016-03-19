@@ -36,23 +36,28 @@ defined in `vm.c|h`. The VMs communicate to each other over UNIX sockets. Specif
 connect as clients to the sockets of all the other VMs.
 
 As per the specs, each VM's run loop is constrained to execute at some randomly
-chosen [n] instructions per second, where an instruction is defined as one of
-the following:
+chosen `n` between 1 and 6 instructions per second, where an instruction is 
+defined as one of the following:
 * Writing to the log
 * Incrementing the logical clock
 * Reading a message from its message queue
 * Sending a message to other clients.
 
 To do this, we have one function per instruction, and each of these functions
-sleeps for [1/n] seconds (as defined by the system clock) before returning.
+sleeps for `1/n` seconds (as defined by the system clock) before returning.
 
 To allow incoming messages on the socket to be processed at a speed independent 
 of the simulated clock rate, we separate queued network messages from an internal message queue, maintained on the `struct vm` itself. The VM's main run loop only 
-ever touches this internal queue, and can only pop one every [1/n] s. 
+ever touches this internal queue, and can only pop one every `1/n` s. 
 
 Meanwhile, during initialization we have each VM fork a background thread, whose  task is to pull (bytestream) messages off its server socket and add it to the VM's internal representation of a message queue. This background thread is mostly unconstrained in speed, except we synchronize access of the message queue 
 between the main and background threads using a mutex. Note that messages are 
 only sent in the client -> server direction over these sockets.
+
+After running for `seconds_to_run` (default 60) seconds, which defaults to 60 seconds, each VM simulation process will independently call exit(). The parent 
+launcher process will terminate after all these children processes have 
+exited.
+
 
 
 # Files
