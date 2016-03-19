@@ -10,8 +10,9 @@
 #include <sys/un.h>
 #include <unistd.h> 
 
-/////////////////
-// MESSAGES
+
+#define MSG_CHECKSUM 1234  // used to verify message integrity
+
 
 struct message *msg_create(sender_id, sender_lc) {
 	int result;
