@@ -70,7 +70,7 @@ struct vm {
     struct message *msg_head; // newest
     struct message *msg_tail; // oldest
     int msg_count;
-    /* Protects access of queue & its count between background socket daemon 
+    /* Protects access of queue & its count between background message reading daemon 
      * and main VM thread */
     pthread_mutex_t msg_lock;
 };

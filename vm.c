@@ -58,6 +58,7 @@ struct vm *vm_create(struct vm_args *args) {
 		goto err_file;
 	}
 
+	/* init mutex used to protect message queue */
 	result = pthread_mutex_init(&vm->msg_lock, NULL);
 	if (result) {
 		goto err_mutex;
@@ -75,6 +76,9 @@ struct vm *vm_create(struct vm_args *args) {
 	vm->lc = 0;
 	vm->ticks = 0;
 
+	/* math to determine, based on randomly chosen num 
+	 * ticks per second, how much to sleep between ticks, 
+	 * and how many ticks to run before ending */
 	int ticks_per_s = randint(MAX_TICKS_PER_SECOND) + 1;
 	printf("VM %d speed: %d ticks/s\n", vm->id, ticks_per_s);
 	vm->sleep_time = 1.0 / ticks_per_s;
@@ -131,21 +135,24 @@ void vm_inc_ticks(struct vm *vm) {
 	}
 }
 
-
+/* Push message onto VM's message queue (FIFO doubly linked list) */
 void vm_push_message(struct vm *vm, struct message *new_msg) {
 	if (new_msg == NULL) {
 		return;
 	}
 
+	/* Grab lock for message queue */
 	pthread_mutex_lock(&vm->msg_lock);
 
 	if (vm->msg_count == 0) {
+		/* Initialize message queue */
 		assert(vm->msg_head == NULL);
 		assert(vm->msg_tail == NULL);
 
 		vm->msg_head = new_msg;
 		vm->msg_tail = new_msg;
 	} else {
+		/* Add new message to head of message queue */
 		new_msg->next = vm->msg_head;
 		new_msg->prev = NULL;
 		new_msg->next->prev = new_msg;
@@ -153,15 +160,19 @@ void vm_push_message(struct vm *vm, struct message *new_msg) {
 	}
 	vm->msg_count++;
 
+	/* Release lock for message queue */
 	pthread_mutex_unlock(&vm->msg_lock);
 }
 
+/* Pop message from VM's message queue (FIFO doubly linked list) */
 struct message *vm_pop_message(struct vm *vm, time_t *rawtime) {
 	struct message *msg;
 
+	/* Grab lock for message queue */
 	pthread_mutex_lock(&vm->msg_lock);
 
 	if (vm->msg_count == 0) {
+		/* Release lock for message queue */
 		pthread_mutex_unlock(&vm->msg_lock);
 		return NULL;
 	}
@@ -176,6 +187,7 @@ struct message *vm_pop_message(struct vm *vm, time_t *rawtime) {
 	}
 	vm->msg_count--;
 
+	/* Release lock for message queue */
 	pthread_mutex_unlock(&vm->msg_lock);
 
 	time(rawtime);
@@ -183,10 +195,22 @@ struct message *vm_pop_message(struct vm *vm, time_t *rawtime) {
 	return msg;
 }
 
+/* Initialize server socket to listen for connections 
+ * 
+ * Args: 
+ * int * sock_fd:  Socket file descriptor will be returned to
+ *                 caller here
+ * const char * sock_name: Socket name that should be used for
+ * 						   this server socket
+ * 
+ * Return:
+ * int: 0 if succeeded to listen on a new server socket; else -1
+ */
 int init_srv_sock(int *sock_fd, const char *sock_name) {
 	int len;
 	struct sockaddr_un sa;
 
+	/* Get socket file descriptor */
 	*sock_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (*sock_fd < 0) {
 		return -1;
@@ -196,10 +220,12 @@ int init_srv_sock(int *sock_fd, const char *sock_name) {
 	sa.sun_family = AF_UNIX;
 	strcpy(sa.sun_path, sock_name);
 	len = strlen(sa.sun_path) + sizeof(sa.sun_family) + 1;
+	/* Bind socket to the given server socket name */
 	if (bind(*sock_fd, (struct sockaddr *)&sa, len) < -1) {
 		perror("bind");
 		return -1;
 	}
+	/* Listen for incoming connections on this socket */
 	if (listen(*sock_fd, 5 /* queue_limit */) < -1) {
 		perror ("listen");
 		return -1;
@@ -207,6 +233,17 @@ int init_srv_sock(int *sock_fd, const char *sock_name) {
 	return 0;
 }
 
+/* Initialize client socket to connect to the remote server socket 
+ * 
+ * Args: 
+ * int * sock_fd:  Socket file descriptor will be returned to
+ *                 caller here
+ * const char * sock_name: Socket name that should be used for
+ * 						   the remote socket
+ * 
+ * Return:
+ * int: 0 if succeeded to connect to server
+ */
 int init_cli_sock(int *sock_fd, const char *remote_name, int vm_id) {
 	int len;
 	struct sockaddr_un sa;
@@ -214,6 +251,7 @@ int init_cli_sock(int *sock_fd, const char *remote_name, int vm_id) {
 	bool done = false;
 
 	while (!done) {
+		/* Create socket, fill socket file descriptor */
 		*sock_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 		if (*sock_fd < 0) {
 			continue;
@@ -223,6 +261,7 @@ int init_cli_sock(int *sock_fd, const char *remote_name, int vm_id) {
 	    strcpy(sa.sun_path, remote_name);
 	    len = strlen(sa.sun_path) + sizeof(sa.sun_family) + 1;
 
+	    /* Attempt to connect to server socket by name */
 	    if (connect(*sock_fd, (struct sockaddr *)&sa, len) == -1) {
 	        /* This commonly errors out if the other server hasn't initalized 
 	         * the socket yet. */
@@ -234,6 +273,8 @@ int init_cli_sock(int *sock_fd, const char *remote_name, int vm_id) {
     return 0;
 }
 
+/* Initialize server sockets by constructing the correct binding 
+ * name and calling init_srv_sock */
 void vm_init_srv_sockets(struct vm *vm) {
 	char name[10]; /* [id].sock */
 
@@ -244,9 +285,12 @@ void vm_init_srv_sockets(struct vm *vm) {
 	}
 }
 
+/* Initialize client sockets by constructing the correct 
+ * connecting names and calling init_client_sock */ 
 void vm_init_cli_sockets(struct vm *vm, struct vm_args *args) {
 	char name[10]; /* [id].sock */
 	int sock_idx = 0;
+	/* For each VM that is not this VM, connect to their srv sock */
 	for (int i = 0; i < NUM_VMS; i++) {
 		if (args->all_ids[i] != vm->id) { 
 			vm->cli_ids[sock_idx] = args->all_ids[i];
@@ -257,11 +301,13 @@ void vm_init_cli_sockets(struct vm *vm, struct vm_args *args) {
 	}
 }
 
-/* for reading messages from the socket */
+/* For reading messages from the socket. See messages.h for
+ * explanation of message structure. */
 #define READBUFLEN 12
 int read_buf[3];
 
-/* Will have two of these, one for handling each client (other VM) */
+/* Thread for handling new incoming messages from other vms in the message queue
+ * Will have two of these, one for handling each client (other VM) */
 void *vm_message_daemon(void *args) {
 	struct vm *vm = (struct vm *)args;
 
@@ -280,12 +326,25 @@ void *vm_message_daemon(void *args) {
 	}
 }
 
+/* Update logical clock as described in class, and increments the tick
+ * count, since updating lc takes a clock cycle.
+ * 
+ * Args: 
+ * struct vm * vm: VM whose lc value we are updating
+ * int other_lc: On message read, the lc value for the process whose
+ * 				 message we read. If this is not a message read, 
+ * 				 other_lc should be <= 0
+ */
 void vm_update_lc(struct vm *vm, int other_lc) {
 	assert(vm != NULL);
+	/* If the sender has a higher lc than this VM, the lc will jump. */
 	vm->lc = max(vm->lc, other_lc) + 1;
 	vm_inc_ticks(vm);
 }
 
+/* Logs a message receive, and increments the tick
+ * count, since logging takes a clock cycle.
+ */
 void vm_log_receive(struct vm *vm, struct message *msg, time_t rawtime) {
 	/* write that it received a message, the global system time, the length 
 	 * of the message queue, and the logical clock time. */
@@ -305,6 +364,9 @@ void vm_log_receive(struct vm *vm, struct message *msg, time_t rawtime) {
 	vm_inc_ticks(vm);
 }
 
+/* Logs a message send (either to one or both processes), and increments the tick
+ * count, since logging takes a clock cycle.
+ */
 void vm_log_send(struct vm *vm, int dest_idx, time_t rawtime) {
 	char buf[128];
 	size_t len, written;
@@ -327,6 +389,9 @@ void vm_log_send(struct vm *vm, int dest_idx, time_t rawtime) {
 	vm_inc_ticks(vm);
 }
 
+/* Logs an internal event, and increments the tick
+ * count, since logging takes a clock cycle.
+ */
 void vm_log_internal(struct vm *vm, time_t rawtime) {
 	char buf[128];
 	size_t len, written;
@@ -344,6 +409,8 @@ void vm_log_internal(struct vm *vm, time_t rawtime) {
 	vm_inc_ticks(vm);
 }
 
+/* Randomly decide on an action type by choosing a random int
+ */
 int vm_generate_action_type(struct vm *vm) {
 	int action_type;
 
@@ -352,12 +419,19 @@ int vm_generate_action_type(struct vm *vm) {
 	return action_type;
 }
 
+/* Send a message to client by id */
 void vm_send_message(struct vm *vm, int sock_idx, time_t *rawtime) {
 	msg_send(vm->cli_sock[sock_idx], vm->id, vm->lc);
 	time(rawtime);
 	vm_inc_ticks(vm);
 }
 
+/* 
+ * Run one cycle of the VM, corresponding to one action.
+ * If a messsage is present in the message queue, handle that message. 
+ * Else choose a random action between sending a message to one or
+ * both other VM's, and carrying out an internal action. 
+ */
 void vm_run_cycle(struct vm *vm) {
 	putchar('.');
 	fflush(stdout);
@@ -367,29 +441,31 @@ void vm_run_cycle(struct vm *vm) {
 	/* check for messages */
 	struct message *msg = vm_pop_message(vm, &rawtime);
 	if (msg != NULL) {
+		/* Update LC using sender's LC if needed. */
 		vm_update_lc(vm, msg->sender_lc);
 		vm_log_receive(vm, msg, rawtime);
 		msg_destroy(msg);
 	} else {
+		/* Randomly choose action */
 		int action_type = vm_generate_action_type(vm);
 		switch(action_type) {
-			case 0:
+			case 0: /* Send message to first other VM */
 				vm_send_message(vm, 0, &rawtime);
 				vm_update_lc(vm, 0 /* other_lc */);
 				vm_log_send(vm, 0, rawtime);
 				break;
-			case 1:
+			case 1: /* Send message to second other VM */
 				vm_send_message(vm, 1, &rawtime);
 				vm_update_lc(vm, 0 /* other_lc */);
 				vm_log_send(vm, 1, rawtime);
 				break;
-			case 2:
+			case 2: /* Send message to both other VMs */
 				vm_send_message(vm, 0, &rawtime); 
 				vm_send_message(vm, 1, &rawtime); // 2nd time will be recorded
 				vm_update_lc(vm, 0 /* other_lc */);
 				vm_log_send(vm, 2, rawtime);
 				break;
-			default:
+			default: /* Internal event */
 				assert(action_type < MAX_ACTION_CHOICES);
 				vm_update_lc(vm, 0 /* other_lc */);
 				vm_log_internal(vm, rawtime);
@@ -398,6 +474,8 @@ void vm_run_cycle(struct vm *vm) {
 	}
 }
 
+/* Initialize VM and initialize sockets; launch background threads; 
+ * run through the appropriate number of randomly chosen actions. */
 void vm_main(struct vm_args *args) {
 	struct vm *vm;
 
